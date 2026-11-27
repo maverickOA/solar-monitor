@@ -46,6 +46,106 @@ jobs:
       CRITICAL_SOC: ${{ vars.CRITICAL_SOC }}
       RAPID_DRAIN_PCT_PER_HR: ${{ vars.RAPID_DRAIN_PCT_PER_HR }}
       STALE_MIN: ${{ vars.STALE_MIN }}
+      NIGHT_START: ${{ vars.NIGHT_START }}
+      MORNING_TIME: ${{ vars.MORNING_TIME }}
+      NIGHT_LOAD_MAX_W: ${{ vars.NIGHT_LOAD_MAX_W }}
+      MORNING_MIN_SOC: ${{ vars.MORNING_MIN_SOC }}
+      CONSECUTIVE_CHECKS: ${{ vars.CONSECUTIVE_CHECKS }}
+      COOLDOWN_MIN: ${{ vars.COOLDOWN_MIN }}
+      DAILY_SUMMARY_HOUR: ${{ vars.DAILY_SUMMARY_HOUR }}
+      CLAUDE_MODEL: ${{ vars.CLAUDE_MODEL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      # Alert memory (streaks, cooldowns, SoC history) survives between runs via the cache.
+      - name: Restore state
+        uses: actions/cache/restore@v4
+        with:
+          path: .state
+          key: solar-state-${{ github.run_id }}
+          restore-keys: solar-state-
+
+      - name: Run monitor
+        run: |
+          case "${{ inputs.mode || 'check' }}" in
+            test-notify) python monitor.py --test-notify ;;
+            show)        python monitor.py --show ;;
+            dry-run)     python monitor.py --dry-run ;;
+            *)           python monitor.py ;;
+          esac
+
+      - name: Save state
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .state
+          key: solar-state-${{ github.run_id }}-${{ github.run_attempt }}
+
+      # GitHub disables scheduled workflows after 60 days without repo activity.
+      # Re-enabling ourselves once a day prevents that.
+      - name: Keep schedule alive
+        if: always() && github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "$(date -u +%H%M)" \< "0010" ]; then
+            gh api -X PUT "repos/${{ github.repository }}/actions/workflows/monitor.yml/enable" || true
+          fi
+name: Solar monitor
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"      # every 10 min (GitHub may delay runs by a few minutes)
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "What to run"
+        type: choice
+        default: check
+        options: [check, test-notify, show, dry-run]
+
+concurrency:
+  group: solar-monitor
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: write   # lets the job keep its own schedule enabled (see last step)
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      # --- secrets (Settings > Secrets and variables > Actions > Secrets) ---
+      LUX_USERNAME: ${{ secrets.LUX_USERNAME }}
+      LUX_PASSWORD: ${{ secrets.LUX_PASSWORD }}
+      LUX_SERIAL: ${{ secrets.LUX_SERIAL }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_IDS: ${{ secrets.TELEGRAM_CHAT_IDS }}
+      NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      # --- plain settings (… > Variables). Blank = built-in default. ---
+      LUX_BASE_URL: ${{ vars.LUX_BASE_URL }}
+      TIMEZONE: ${{ vars.TIMEZONE }}
+      SYSTEM_NAME: ${{ vars.SYSTEM_NAME }}
+      DAY_START: ${{ vars.DAY_START }}
+      DAY_END: ${{ vars.DAY_END }}
+      PEAK_START: ${{ vars.PEAK_START }}
+      PEAK_END: ${{ vars.PEAK_END }}
+      DAY_DISCHARGE_W: ${{ vars.DAY_DISCHARGE_W }}
+      PV_LOW_W: ${{ vars.PV_LOW_W }}
+      LOW_SOC: ${{ vars.LOW_SOC }}
+      CRITICAL_SOC: ${{ vars.CRITICAL_SOC }}
+      RAPID_DRAIN_PCT_PER_HR: ${{ vars.RAPID_DRAIN_PCT_PER_HR }}
+      STALE_MIN: ${{ vars.STALE_MIN }}
       CONSECUTIVE_CHECKS: ${{ vars.CONSECUTIVE_CHECKS }}
       COOLDOWN_MIN: ${{ vars.COOLDOWN_MIN }}
       DAILY_SUMMARY_HOUR: ${{ vars.DAILY_SUMMARY_HOUR }}
