@@ -88,5 +88,3 @@ Change any value under **Variables**. No code edit is needed.
 - **The cloud only knows what the dongle uploads.** If your home internet or the WiFi dongle goes down, you'll get **Offline/Stale** instead of detailed alerts.
 - **Unofficial API.** This uses the same endpoints as the LuxPower website (the ones the open-source `pylxpweb` / Home Assistant integration uses). If LuxPower changes them you'll get "Can't read the LuxPower portal" alerts, so you'll know.
 - **Upgrade path:** a Raspberry Pi running Home Assistant + the LuxPower/EG4 integration (or lxp-bridge reading the dongle locally) gives readings every few seconds even when the internet is down. That's worth doing later if you want a live dashboard.
-# solar-monitor
-LuxPower solar monitor with Telegram alerts
