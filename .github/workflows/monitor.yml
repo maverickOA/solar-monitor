@@ -1,8 +1,8 @@
 name: Solar monitor
 
 on:
-  schedule:
-    - cron: "*/10 * * * *"      # every 10 min (GitHub may delay runs by a few minutes)
+  # Triggered every 10 min by cron-job.org (POST .../actions/workflows/monitor.yml/dispatches).
+  # GitHub's own schedule was removed: it started hours late and would double-count checks.
   workflow_dispatch:
     inputs:
       mode:
